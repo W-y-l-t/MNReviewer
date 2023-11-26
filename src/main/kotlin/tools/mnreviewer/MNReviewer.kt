@@ -13,37 +13,44 @@ class MagicNumbersReview : AnAction() {
         val editor: Editor? = CommonDataKeys.EDITOR.getData(dataContext)
 
         if (editor?.document == null) {
-            Messages.showMessageDialog(Companion.NO_EDITOR_EXCEPTION,
-                Companion.MESSAGE_TITLE, Messages.getInformationIcon())
+            Messages.showMessageDialog(NO_EDITOR_EXCEPTION,
+                MESSAGE_TITLE, Messages.getInformationIcon())
             return
         }
 
         var modifiedContent = editor.document.text
-        val firstOpenCurlyBracketPosition = editor.document.text.indexOfFirst {it == '{'}
-
-        var numberMatcher = Regex(Companion.INTEGERS_PATTERN).toPattern().matcher(modifiedContent)
-        if (!numberMatcher.find()) {
-            Messages.showMessageDialog(Companion.CONGRATULATION,
-                Companion.MESSAGE_TITLE, Messages.getInformationIcon())
-
-            return
-        }
 
         val resultOutputMessageBuilder = StringBuilder()
         var declarations = ArrayList<Declaration>()
         val numbersMap = mutableMapOf("" to true)
+
+        val firstOpenCurlyBracketPosition = modifiedContent.indexOfFirst {it == '{'}
+
+        modifiedContent = StringBuilder(modifiedContent).insert(firstOpenCurlyBracketPosition + 1,
+            "\n\tval constants = object {\n\t}\n").toString()
+
+        val secondOpenCurlyBracketPosition = modifiedContent.indexOf('{', firstOpenCurlyBracketPosition + 1)
+
+        var numberMatcher = Regex(INTEGERS_PATTERN).toPattern().matcher(modifiedContent)
+        if (!numberMatcher.find()) {
+            Messages.showMessageDialog(CONGRATULATION,
+                MESSAGE_TITLE, Messages.getInformationIcon())
+
+            return
+        }
 
         while (numberMatcher.find()) {
             val comments = getCurrentCommentsPositions(modifiedContent)
             declarations = getCurrentDeclarations(modifiedContent, declarations)
 
             val number: String = numberMatcher.group()
-            val currentConstName: String = Companion.CONSTANT_TEMPLATE + number
-            val constantDeclaration: String = "val %s : %s = %s".format(currentConstName, "Int", number)
+            val constInObjectName: String = CONSTANT_IN_OBJECT_TEMPLATE + number
+            val constInMainName: String = CONSTANT_IN_MAIN_TEMPLATE + number
+            val constantDeclaration: String = CONSTANT_DECLARATION_TEMPLATE.format(constInObjectName, "Int", number)
 
             var numberFirstIndex : Int = numberMatcher.start()
             var numberPostLastIndex : Int = numberMatcher.end()
-            val numberRange : IntRange = IntRange(numberFirstIndex, numberPostLastIndex)
+            val numberRange = IntRange(numberFirstIndex, numberPostLastIndex)
 
             val preFirstCharacter: Char = modifiedContent[numberFirstIndex - 1]
             val postLastCharacter: Char = modifiedContent[numberPostLastIndex]
@@ -55,29 +62,30 @@ class MagicNumbersReview : AnAction() {
                 continue
             }
 
-            if (declarations.stream().noneMatch { constant -> constant.name == currentConstName }) {
-                modifiedContent = StringBuilder(modifiedContent).insert(firstOpenCurlyBracketPosition + 1,
-                    "\n\t$constantDeclaration").toString()
+            if (declarations.stream().noneMatch { constant -> constant.name == constInObjectName }) {
+                modifiedContent = StringBuilder(modifiedContent).insert(secondOpenCurlyBracketPosition + 1,
+                    "\n\t\t$constantDeclaration").toString()
 
                 val constantDeclarationMatcher = Regex(constantDeclaration).find(modifiedContent)
                 if (constantDeclarationMatcher != null) {
                     declarations.add(
                         Declaration(
-                            currentConstName,
+                            constInObjectName,
                             number,
                             constantDeclarationMatcher.range
                         )
                     )
                 }
 
-                numberFirstIndex += constantDeclaration.length + 2
-                numberPostLastIndex += constantDeclaration.length + 2
+                numberFirstIndex += constantDeclaration.length + 3
+                numberPostLastIndex += constantDeclaration.length + 3
             }
 
-            modifiedContent = StringBuilder(modifiedContent).replace(numberFirstIndex, numberPostLastIndex, currentConstName).toString()
+            modifiedContent = StringBuilder(modifiedContent)
+                .replace(numberFirstIndex, numberPostLastIndex, constInMainName).toString()
 
             for (constant: Declaration in declarations) {
-                val matcher: Regex = Regex("val %s : Int = \\d+".format(constant.name))
+                val matcher: Regex = Regex(CONSTANT_DECLARATION_PATTERN.format(constant.name))
                 if (matcher.find(modifiedContent) != null) {
                     constant.range = matcher.find(modifiedContent)!!.range
                 }
@@ -88,14 +96,15 @@ class MagicNumbersReview : AnAction() {
                 numbersMap[number] = true
             }
 
-            numberMatcher = Regex(Companion.INTEGERS_PATTERN).toPattern().matcher(modifiedContent)
+            numberMatcher = Regex(INTEGERS_PATTERN).toPattern().matcher(modifiedContent)
         }
 
-        val finalModifiedContent = modifiedContent
-        WriteCommandAction.runWriteCommandAction(e.project) { editor.document.setText(finalModifiedContent) }
+        WriteCommandAction.runWriteCommandAction(e.project) {
+            editor.document.setText(modifiedContent)
+        }
 
         val resultOutputMessage = resultOutputMessageBuilder.insert(0, "Extracted: ").toString()
-        Messages.showMessageDialog(resultOutputMessage, Companion.MESSAGE_TITLE, Messages.getInformationIcon())
+        Messages.showMessageDialog(resultOutputMessage, MESSAGE_TITLE, Messages.getInformationIcon())
     }
 
     class Comment(private var range: IntRange) {
@@ -121,7 +130,11 @@ class MagicNumbersReview : AnAction() {
         private const val INTEGERS_PATTERN = "\\d+"
         private const val DECLARATION_PATTERN = "\\w+\\s*=\\s*\\d+"
 
-        private const val CONSTANT_TEMPLATE = "MAGIC_NUMBER_"
+        private const val CONSTANT_IN_OBJECT_TEMPLATE = "MAGIC_NUMBER_"
+        private const val CONSTANT_IN_MAIN_TEMPLATE = "constants.MAGIC_NUMBER_"
+
+        private const val CONSTANT_DECLARATION_PATTERN = "val %s : Int = \\d+"
+        private const val CONSTANT_DECLARATION_TEMPLATE = "val %s : %s = %s"
     }
 
     private fun isMagicNumber(prefixCharacter: Char, suffixCharacter: Char): Boolean {
@@ -149,11 +162,18 @@ class MagicNumbersReview : AnAction() {
         return comments
     }
 
-    private fun getCurrentDeclarations(modifiedContent: String, declarations: ArrayList<Declaration>) : ArrayList<Declaration> {
+    private fun getCurrentDeclarations(modifiedContent: String,
+                                       declarations: ArrayList<Declaration>): ArrayList<Declaration> {
+
         val declarationMatcher = Regex(Companion.DECLARATION_PATTERN).toPattern().matcher(modifiedContent)
+
         while (declarationMatcher.find()) {
             val declarationParts = declarationMatcher.group().trim().split("=")
-            declarations.add(Declaration(declarationParts[0], declarationParts[1], IntRange(declarationMatcher.start(), declarationMatcher.end())))
+            declarations.add(Declaration(
+                declarationParts[0],
+                declarationParts[1],
+                IntRange(declarationMatcher.start(), declarationMatcher.end()))
+            )
         }
 
         return declarations
