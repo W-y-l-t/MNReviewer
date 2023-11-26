@@ -1,0 +1,39 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <id>tools.mnreviewer</id>
+
+    <!-- Public plugin name should be written in Title Case.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
+    <name>MNReviewer</name>
+
+    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
+    <vendor email = "dikop111@gmail.com" url = "https://itmo.ru"> ITMO University </vendor>
+
+    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
+         Simple HTML elements (text formatting, paragraphs, and lists) can be added inside of <![CDATA[ ]]> tag.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
+    <description>
+        Plugin for IntelliJ IDEA
+        Replaces all magic numbers with the same constants of the form MAGIC_NUMBER_/number/
+    </description>
+
+    <!-- Product and plugin compatibility requirements.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <!-- Extension points defined by the plugin.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+
+    <actions>
+        <group id = "MNReviewer.RefactoringMenu" text = "Replace All MN" description = "Extract magic numbers">
+        <add-to-group group-id = "MainMenu" anchor = "last" />
+        <action
+                id = "tools.mnreviewer.MagicNumbersReview"
+                class = "tools.mnreviewer.MagicNumbersReview"
+                text = "Magic Numbers Review"
+                description = "Replaces all magic numbers to the constants"/>
+        </group>
+    </actions>
+
+</idea-plugin>
