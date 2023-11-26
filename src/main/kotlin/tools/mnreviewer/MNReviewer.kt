@@ -30,57 +30,62 @@ class MagicNumbersReview : AnAction() {
         }
 
         val resultOutputMessageBuilder = StringBuilder()
+        var declarations = ArrayList<Declaration>()
+        val numbersMap = mutableMapOf("" to true)
 
         while (numberMatcher.find()) {
             val comments = getCurrentCommentsPositions(modifiedContent)
-            val declarations = getCurrentDeclarations(modifiedContent)
+            declarations = getCurrentDeclarations(modifiedContent, declarations)
 
             val number: String = numberMatcher.group()
-            val constantName: String = "MAGIC_NUMBER_" + number.replace('.', '_')
-            val constantDeclaration: String = "val %s : %s = %s;".format(constantName, "Int", number)
+            val currentConstName: String = Companion.CONSTANT_TEMPLATE + number
+            val constantDeclaration: String = "val %s : %s = %s".format(currentConstName, "Int", number)
 
-            var numberStartPosition: Int = numberMatcher.start()
-            var numberEndPosition: Int = numberMatcher.end()
+            var numberFirstIndex : Int = numberMatcher.start()
+            var numberPostLastIndex : Int = numberMatcher.end()
+            val numberRange : IntRange = IntRange(numberFirstIndex, numberPostLastIndex)
 
-            val preFirstCharacter: Char = modifiedContent[numberStartPosition - 1]
-            val postLastCharacter: Char = modifiedContent[numberEndPosition]
+            val preFirstCharacter: Char = modifiedContent[numberFirstIndex - 1]
+            val postLastCharacter: Char = modifiedContent[numberPostLastIndex]
 
             if (!isMagicNumber(preFirstCharacter, postLastCharacter)
-                || comments.stream().anyMatch { comment -> comment.surrounds(IntRange(numberStartPosition, numberEndPosition)) }
-                || declarations.stream().anyMatch { constant -> constant.surrounds(IntRange(numberStartPosition, numberEndPosition)) }
+                || comments.stream().anyMatch { comment -> comment.surrounds(numberRange) }
+                || declarations.stream().anyMatch { constant -> constant.surrounds(numberRange) }
             ) {
                 continue
             }
 
-            if (declarations.stream().noneMatch { constant -> constant.name == constantName }) {
-                modifiedContent = StringBuilder(modifiedContent).insert(firstOpenCurlyBracketPosition + 1, "\n\t$constantDeclaration").toString()
+            if (declarations.stream().noneMatch { constant -> constant.name == currentConstName }) {
+                modifiedContent = StringBuilder(modifiedContent).insert(firstOpenCurlyBracketPosition + 1,
+                    "\n\t$constantDeclaration").toString()
 
                 val constantDeclarationMatcher = Regex(constantDeclaration).find(modifiedContent)
                 if (constantDeclarationMatcher != null) {
                     declarations.add(
                         Declaration(
-                            constantName,
+                            currentConstName,
                             number,
                             constantDeclarationMatcher.range
                         )
                     )
                 }
 
-                numberStartPosition += constantDeclaration.length + 2
-                numberEndPosition += constantDeclaration.length + 2
+                numberFirstIndex += constantDeclaration.length + 2
+                numberPostLastIndex += constantDeclaration.length + 2
             }
 
-            modifiedContent = StringBuilder(modifiedContent).replace(numberStartPosition, numberEndPosition, constantName).toString()
+            modifiedContent = StringBuilder(modifiedContent).replace(numberFirstIndex, numberPostLastIndex, currentConstName).toString()
 
             for (constant: Declaration in declarations) {
-                val matcher: Regex = Regex("val %s : Int = (\\d)+".format(constant.name))
+                val matcher: Regex = Regex("val %s : Int = \\d+".format(constant.name))
                 if (matcher.find(modifiedContent) != null) {
                     constant.range = matcher.find(modifiedContent)!!.range
                 }
             }
 
-            if (resultOutputMessageBuilder.indexOf(number) == -1) {
+            if (!numbersMap.containsKey(number)) {
                 resultOutputMessageBuilder.append(number).append("; ")
+                numbersMap[number] = true
             }
 
             numberMatcher = Regex(Companion.INTEGERS_PATTERN).toPattern().matcher(modifiedContent)
@@ -115,6 +120,8 @@ class MagicNumbersReview : AnAction() {
 
         private const val INTEGERS_PATTERN = "\\d+"
         private const val DECLARATION_PATTERN = "\\w+\\s*=\\s*\\d+"
+
+        private const val CONSTANT_TEMPLATE = "MAGIC_NUMBER_"
     }
 
     private fun isMagicNumber(prefixCharacter: Char, suffixCharacter: Char): Boolean {
@@ -142,9 +149,7 @@ class MagicNumbersReview : AnAction() {
         return comments
     }
 
-    private fun getCurrentDeclarations(modifiedContent: String) : ArrayList<Declaration> {
-        val declarations = ArrayList<Declaration>()
-
+    private fun getCurrentDeclarations(modifiedContent: String, declarations: ArrayList<Declaration>) : ArrayList<Declaration> {
         val declarationMatcher = Regex(Companion.DECLARATION_PATTERN).toPattern().matcher(modifiedContent)
         while (declarationMatcher.find()) {
             val declarationParts = declarationMatcher.group().trim().split("=")
