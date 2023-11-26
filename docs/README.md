@@ -20,11 +20,16 @@ Hovering over it, you can see the "Magic Number Review" function.**
 1. If there are no magic numbers in the file, 
 we receive the corresponding message
 ![img_2.png](img_2.png)
+
+
 2. Using the plugin when the file is closed will also result in the message
 ![img_3.png](img_3.png)
+
+
 3. Otherwise, the "constants" object will appear in the file, 
 which will store the found magic numbers.
 ![img_4.png](img_4.png) ![img_5.png](img_5.png)
+
 
 ## Commits history
 
@@ -34,3 +39,4 @@ which will store the found magic numbers.
 | ***80e1be1*** | [Feat] Add functionality for working with integers |
 | ***479c5c2*** | [Fix] Duplication of constants bug fixed           |
 | ***1da9b84*** | Constants are now declared as an object            | 
+| ***e52d42a*** | [Docs] README.md big update                        |
